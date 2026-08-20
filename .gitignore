@@ -29,3 +29,6 @@ yarn-error.log*
 *.swo
 .DS_Store
 Thumbs.db
+
+# ── npm 凭据（发布用 token，严禁提交）──
+.npmrc
