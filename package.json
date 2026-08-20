@@ -5,6 +5,14 @@
   "type": "module",
   "main": "index.mjs",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/huazhiliange/dsh-share-page.git"
+  },
+  "homepage": "https://github.com/huazhiliange/dsh-share-page#readme",
+  "bugs": {
+    "url": "https://github.com/huazhiliange/dsh-share-page/issues"
+  },
   "keywords": [
     "deepseek",
     "harness",
