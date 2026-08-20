@@ -116,6 +116,35 @@ check('脱敏：IP 已替换', !evilOut.html.includes('192.168.1.1'))
 check('脱敏：深层路径已缩写', !evilOut.html.includes('C:\\Users\\secret\\deep\\path\\to\\nowhere'))
 check('工具调用卡片存在且含错误标记逻辑', evilOut.html.includes('toolcall'))
 
+// 3) Markdown 渲染自检（合成事件：正常语法 + 恶意注入混排）
+const mdEvents = [
+  { type: 'session', version: 0, id: 'session-md', createdAt: Date.now(), cwd: 'C:\\md' },
+  { type: 'session/title', seq: 0, time: Date.now(), data: { title: 'Markdown 渲染自检' } },
+  { type: 'turn/start', seq: 1, time: Date.now(), data: { turn: 1 } },
+  { type: 'user/message', seq: 2, time: Date.now(), data: { content: [{ type: 'text', text:
+    '# 项目标题\n\n> 引用一行\n\n- 顶层 A\n  - 嵌套 A1\n  - 嵌套 A2\n- 顶层 B\n\n1. 第一\n2. 第二\n\n| 列甲 | 列乙 |\n| --- | --- |\n| 1 | 2 |\n\n---\n\n[好链](https://example.com) 与 [坏链](javascript:alert(1)) 与 **粗体** *斜体* ~~删除~~ `行内码` 裸链 https://example.org/x\n\n```js\nconst evil = "<script>alert(1)</script>"\n```' }] } },
+  { type: 'assistant/message', seq: 3, time: Date.now(), data: { message: { role: 'assistant', content: [
+    { type: 'text', text: '## 回答标题\n\n```html\n<img src=x onerror=evil()>\n```\n' },
+  ] } } },
+  { type: 'turn/end', seq: 4, time: Date.now(), data: { turn: 1, reason: { kind: 'completed' } } },
+]
+const mdOut = renderSessionPage(mdEvents, { redact: false, includeReasoning: true })
+const md = mdOut.html
+check('MD：标题渲染为 <h1>/<h2>', md.includes('<h1>项目标题</h1>') && md.includes('<h2>回答标题</h2>'))
+check('MD：无序列表 + 嵌套渲染', md.includes('<ul>') && md.includes('<li>顶层 A<ul>') && md.includes('<li>嵌套 A1'))
+check('MD：有序列表渲染', md.includes('<ol>') && md.includes('<li>第一'))
+check('MD：引用块渲染', md.includes('<blockquote class="md-quote">引用一行'))
+check('MD：表格渲染', md.includes('<table class="md-table">') && md.includes('<th>列甲</th>') && md.includes('<td>2</td>'))
+check('MD：水平线渲染', md.includes('<hr class="md-hr">'))
+check('MD：粗体/斜体/删除线/行内码渲染', md.includes('<strong>粗体</strong>') && md.includes('<em>斜体</em>') && md.includes('<del>删除</del>') && md.includes('<code class="md-code">行内码</code>'))
+check('MD：fenced 代码块渲染（带语言标注）', md.includes('language-js') && md.includes('language-html'))
+check('MD：http(s) 链接生成且带 noopener', md.includes('<a href="https://example.com" target="_blank" rel="noopener noreferrer">好链</a>') && md.includes('href="https://example.org/x"'))
+check('MD：javascript: 链接被中和（不生成 <a>）', !md.includes('href="javascript'))
+check('MD：裸 URL 自动链接', md.includes('>https://example.org/x</a>'))
+check('MD：代码块内 <script> 已转义', !md.includes('<script>alert(1)') && md.includes('&lt;script&gt;'))
+check('MD：代码块内 <img> 注入已转义', !/<img[\s>]/.test(md))
+check('MD：markdown 路径无裸 <script>（仅模板自带 1 个）', (md.match(/<script[\s>]/g) || []).length === 1)
+
 const failed = checks.filter((c) => !c.ok)
 console.log(`\n${checks.length - failed.length}/${checks.length} 项通过`)
 process.exit(failed.length > 0 ? 1 : 0)

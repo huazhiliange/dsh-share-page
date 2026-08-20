@@ -39,6 +39,7 @@ DSH 生态里已有的导出/分享能力，目标各不相同：
 
 - **自包含单文件 HTML**：内联 CSS/JS、系统字体栈、零外部请求，断网也能打开；`Ctrl+P` 可直接打印 / 存 PDF。
 - **时间线渲染**：用户 / 助手消息气泡、模型徽标（provider/model）、每轮 usage token 统计。
+- **Markdown 渲染**：消息正文按 Markdown 渲染（标题 / 嵌套列表 / 代码块 / 表格 / 链接等），服务端生成、无 JS 也可读；内置极简渲染器（先转义后解析、零外部请求），思考过程与工具参数/结果保持纯文本。
 - **可折叠工具调用**：`<details>` 卡片，参数 + 结果并排（错误结果红色标记），一键展开 / 折叠全部。
 - **思考过程**：reasoning 块默认折叠展示（可关闭）。
 - **默认脱敏**：邮箱、密钥（`sk-`/`AKIA`/`ghp_`/`Bearer`）、IPv4、Windows 绝对路径、长随机串自动替换；可关闭。
@@ -140,6 +141,7 @@ dsh-share-page/
 ├── index.mjs                 # host 入口 apply(ctx)：工具 + 命令 + HTTP 路由
 ├── lib/
 │   ├── render-html.mjs       # 事件流 → 分享页 HTML（纯函数，核心）
+│   ├── markdown.mjs          # 极简 Markdown 渲染器（先转义后解析，零依赖）
 │   ├── session-reader.mjs    # 会话读取（host: sessionPersistence.inspect；独立: fzstd+JSONL）
 │   ├── redact.mjs            # 脱敏（纯函数）
 │   ├── fingerprint.mjs       # 双层 SHA-256 指纹（纯函数）
@@ -165,7 +167,7 @@ dsh-share-page/
 ## 限制与 Roadmap
 
 - [ ] 会话 **descendants / 附件** 纳入分享（当前只渲染根会话事件流）
-- [ ] Markdown 内容渲染（当前为纯文本 pre-wrap；已转义防注入）
+- [x] Markdown 内容渲染（正文走内置极简渲染器；已转义防注入）
 - [ ] 浏览器内预览（大文件不返回 HTML 正文，仅返回路径）
 - [ ] 会话列表选择器（当前经 Web UI 当前会话或显式 sessionId）
 - [ ] 子代理（subagent）会话树展开
