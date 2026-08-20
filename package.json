@@ -1,0 +1,65 @@
+{
+  "name": "dsh-share-page",
+  "version": "0.1.0",
+  "description": "Share any DeepSeek Harness session as a self-contained read-only static webpage — timeline, collapsible tool calls & reasoning, default redaction, dual SHA-256 fingerprints, watermark. · 把 DSH 会话一键变成可分享的只读静态网页：单文件 HTML、离线可开、默认脱敏。",
+  "type": "module",
+  "main": "index.mjs",
+  "license": "MIT",
+  "keywords": [
+    "deepseek",
+    "harness",
+    "dsh",
+    "dsh-plugin",
+    "share",
+    "session",
+    "export",
+    "html",
+    "static",
+    "readonly"
+  ],
+  "scripts": {
+    "verify": "node scripts/verify-render.mjs"
+  },
+  "dependencies": {
+    "@deepseek-ai/dsh-tools": "^0.1.0-rc.6",
+    "fzstd": "^0.1.0"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.1",
+    "@deepseek-ai/dsh-session-persistence": "^0.1.0-rc.6"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/dsh-session-persistence": {
+      "optional": true
+    }
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-conversation"
+      ],
+      "platform": "web"
+    }
+  },
+  "exports": {
+    ".": {
+      "default": "./index.mjs"
+    },
+    "./lib/*": "./lib/*",
+    "./client": "./client/index.mjs",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.mjs",
+    "lib",
+    "client",
+    "cordis.patch.yml",
+    "scripts",
+    "README.md"
+  ]
+}
