@@ -173,15 +173,24 @@ window.__ModuleLoader__.load({
     // 组件
     // -------------------------------------------------------------------------
 
-    function safeDownloadName(sessionId) {
+    function safeFilename(sessionId) {
       const base = String(sessionId || 'share').replace(/[^A-Za-z0-9_-]/g, '_')
       return `${base}.html`
     }
 
-    function triggerDownload(sessionId) {
+    function openShareInNewTab(sessionId) {
+      // 用 <a target="_blank" rel="noopener noreferrer"> 模拟点击，
+      // 比 window.open 更稳：跟随用户手势不会被浏览器弹窗拦截。
+      // 不带 download 属性 → 浏览器走导航语义（看服务端
+      // content-disposition 决定 inline 还是下载）；服务端 header
+      // 已设为 inline，因此新 tab 直接渲染 HTML。
       const link = document.createElement('a')
-      link.href = `/api/session-share/download?sessionId=${encodeURIComponent(String(sessionId))}`
-      link.download = safeDownloadName(sessionId)
+      link.href = new URL(
+        `/api/session-share/download?sessionId=${encodeURIComponent(String(sessionId))}`,
+        hostBase(),
+      ).href
+      link.target = '_blank'
+      link.rel = 'noopener noreferrer'
       link.style.display = 'none'
       document.body.appendChild(link)
       link.click()
@@ -199,7 +208,7 @@ window.__ModuleLoader__.load({
 
       React.useEffect(() => {
         if (prevStatusRef.current !== 'success' && status === 'success' && result?.path) {
-          triggerDownload(sessionId)
+          openShareInNewTab(sessionId)
         }
         prevStatusRef.current = status
       }, [status, result, sessionId])

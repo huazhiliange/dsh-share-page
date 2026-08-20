@@ -22,7 +22,7 @@
 
 import { mkdir, writeFile, stat } from 'node:fs/promises'
 import { createReadStream } from 'node:fs'
-import { join } from 'node:path'
+import { join, basename } from 'node:path'
 import { homedir } from 'node:os'
 import { renderSessionPage } from './lib/render-html.mjs'
 import { sessionFingerprint, fileFingerprint } from './lib/fingerprint.mjs'
@@ -34,6 +34,21 @@ const name = 'session-share-page'
 /** 输出目录：$DSH_HOME/shares（$DSH_HOME 缺省 ~/.dsh），可用 options.outDir 覆盖。 */
 export function defaultShareDir() {
   return join(process.env.DSH_HOME || join(homedir(), '.dsh'), 'shares')
+}
+
+// 最近渲染记录（sessionId → 实际落盘路径）。下载路由优先查这里：
+// renderShare 可能按 options.outDir 写到自定义目录，若下载路由只认默认
+// shares 目录，Agent 工具 / 命令传 outDir 后下载会 404。Map miss（如
+// dsh 重启后）再回退默认目录。容量上限防无限增长，插入序即最近使用序。
+const recentRenders = new Map()
+const RECENT_RENDER_LIMIT = 64
+
+function rememberRender(sessionId, filePath) {
+  recentRenders.delete(sessionId)
+  recentRenders.set(sessionId, filePath)
+  if (recentRenders.size > RECENT_RENDER_LIMIT) {
+    recentRenders.delete(recentRenders.keys().next().value)
+  }
 }
 
 function safeFilename(sessionId) {
@@ -67,6 +82,7 @@ export async function renderShare(ctx, sessionId, options = {}) {
   await mkdir(outDir, { recursive: true })
   const filePath = join(outDir, safeFilename(sessionId))
   await writeFile(filePath, out.html, 'utf8')
+  rememberRender(sessionId, filePath)
   const info = await stat(filePath)
   return {
     path: filePath,
@@ -79,16 +95,9 @@ export async function renderShare(ctx, sessionId, options = {}) {
 }
 
 function renderToolText(args, value) {
-  const stats = value.stats || {}
   return [{
     type: 'text',
-    text: [
-      `分享页已生成：${value.path}`,
-      `会话指纹：${value.sessionFingerprint}`,
-      `文件指纹：${value.fileFingerprint}`,
-      `规模：${stats.turns ?? 0} 轮 · ${stats.userMessages ?? 0} 问 · ${stats.assistantMessages ?? 0} 答 · ${stats.toolCalls ?? 0} 次工具调用`,
-      `大小：${value.size} 字节${value.redacted ? '（已脱敏）' : '（未脱敏）'}`,
-    ].join('\n'),
+    text: messages(args?.locale).shareResult(value),
   }]
 }
 
@@ -198,7 +207,10 @@ export function apply(ctx) {
 
     // 4) 下载路由：GET /api/session-share/download?sessionId=...
     //    根据 sessionId 返回刚生成的 HTML 文件，触发浏览器自动下载。
-    //    仅读取默认 shares 目录下由本插件生成的安全文件名，避免任意文件读取。
+    //    优先取最近一次渲染的实际落盘路径（可能为 options.outDir 自定义目录），
+    //    miss 时回退默认 shares 目录。路径只来自本插件 renderShare 写入的
+    //    记录或默认目录下的安全文件名，不接受请求参数里的任意路径，
+    //    不构成任意文件读取面。
     wsCtx.webServer.register({
       kind: 'exact',
       path: '/api/session-share/download',
@@ -211,12 +223,15 @@ export function apply(ctx) {
           const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`)
           const sessionId = url.searchParams.get('sessionId')
           if (!sessionId) return send(400, { ok: false, error: 'sessionId is required' })
-          const filePath = join(defaultShareDir(), safeFilename(sessionId))
+          const filePath = recentRenders.get(sessionId) || join(defaultShareDir(), safeFilename(sessionId))
           const info = await stat(filePath)
           if (!info.isFile()) return send(404, { ok: false, error: 'not found' })
           res.writeHead(200, {
             'content-type': 'text/html; charset=utf-8',
-            'content-disposition': `attachment; filename="${safeFilename(sessionId)}"`,
+            // inline: 新 tab 直接渲染 HTML（浏览器看这个 header 而不是
+            // 链接 download 属性决定行为）；保留 filename 是为了让浏览器
+            // 「另存为」时有合理默认名。
+            'content-disposition': `inline; filename="${basename(filePath)}"`,
             'content-length': info.size,
           })
           createReadStream(filePath).pipe(res)
